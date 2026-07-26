@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../utils/api';
-import { Send, Sparkles, Trash2, ArrowUpRight, MessageSquareDashed } from 'lucide-react';
+import { copyToClipboard } from '../utils/export';
+import { Send, Sparkles, Trash2, ArrowUpRight, MessageSquareDashed, Copy, Check } from 'lucide-react';
 import LoadingSkeleton from './LoadingSkeleton';
 
 export default function ChatAssistant({ projectId }) {
@@ -88,104 +89,255 @@ export default function ChatAssistant({ projectId }) {
     }
   };
 
-  // Helper to parse Markdown inline tokens (**bold**, *italic*, `code`) cleanly into React nodes
-  const renderFormattedText = (text) => {
+  // Parse inline Markdown tokens (**bold**, *italic*, `code`) cleanly into React nodes
+  const renderInlineFormatted = (text) => {
     if (!text) return null;
 
-    const lines = text.split('\n');
+    const tokens = [];
+    let tokenKey = 0;
 
-    return lines.map((line, lIdx) => {
-      const tokens = [];
-      let tokenKey = 0;
+    // Pattern matching `code`, **bold**, __bold__, *italic*, _italic_
+    const regex = /(`([^`]+)`|\*\*([^*]+)\*\*|__([^_]+)__|(?<!\*)\*([^*]+)\*(?!\*)|\b_([^_]+)_\b)/g;
+    let lastIndex = 0;
+    let match;
 
-      // Regex matching **bold**, *italic*, or `code`
-      const regex = /(\*\*(.*?)\*\*|\*(.*?)\*|`(.*?)`)/g;
-      let lastIndex = 0;
-      let match;
-
-      while ((match = regex.exec(line)) !== null) {
-        if (match.index > lastIndex) {
-          tokens.push(<span key={tokenKey++}>{line.substring(lastIndex, match.index)}</span>);
-        }
-
-        const fullMatch = match[0];
-        if (fullMatch.startsWith('**')) {
-          tokens.push(
-            <strong key={tokenKey++} style={{ color: '#fff', fontWeight: '700' }}>
-              {match[2]}
-            </strong>
-          );
-        } else if (fullMatch.startsWith('`')) {
-          tokens.push(
-            <code
-              key={tokenKey++}
-              style={{
-                background: 'rgba(6, 182, 212, 0.1)',
-                color: 'var(--secondary)',
-                padding: '0.15rem 0.35rem',
-                borderRadius: '4px',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.8rem',
-                border: '1px solid rgba(6, 182, 212, 0.2)'
-              }}
-            >
-              {match[4]}
-            </code>
-          );
-        } else if (fullMatch.startsWith('*')) {
-          tokens.push(
-            <em key={tokenKey++} style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-              {match[3]}
-            </em>
-          );
-        }
-
-        lastIndex = regex.lastIndex;
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        tokens.push(<span key={tokenKey++}>{text.substring(lastIndex, match.index)}</span>);
       }
 
-      if (lastIndex < line.length) {
-        tokens.push(<span key={tokenKey++}>{line.substring(lastIndex)}</span>);
+      const fullMatch = match[0];
+      if (fullMatch.startsWith('`')) {
+        const codeText = match[2];
+        tokens.push(
+          <code
+            key={tokenKey++}
+            style={{
+              background: 'rgba(6, 182, 212, 0.12)',
+              color: '#38bdf8',
+              padding: '0.15rem 0.4rem',
+              borderRadius: '4px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.8rem',
+              border: '1px solid rgba(6, 182, 212, 0.25)',
+              margin: '0 0.15rem'
+            }}
+          >
+            {codeText}
+          </code>
+        );
+      } else if (fullMatch.startsWith('**') || fullMatch.startsWith('__')) {
+        const boldText = match[3] || match[4];
+        tokens.push(
+          <strong key={tokenKey++} style={{ color: '#ffffff', fontWeight: '700' }}>
+            {boldText}
+          </strong>
+        );
+      } else if (fullMatch.startsWith('*') || fullMatch.startsWith('_')) {
+        const italicText = match[5] || match[6];
+        tokens.push(
+          <em key={tokenKey++} style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            {italicText}
+          </em>
+        );
       }
 
-      return (
-        <p key={lIdx} style={{ margin: '0.25rem 0', whiteSpace: 'pre-wrap', lineHeight: '1.5', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-          {tokens}
-        </p>
-      );
-    });
-  };
-
-  // Render content with code block and inline markdown formatting
-  const renderMessageContent = (content) => {
-    if (!content.includes('```')) {
-      return renderFormattedText(content);
+      lastIndex = regex.lastIndex;
     }
 
-    const parts = content.split(/(```[\s\S]*?```)/g);
-    return parts.map((part, index) => {
+    if (lastIndex < text.length) {
+      tokens.push(<span key={tokenKey++}>{text.substring(lastIndex)}</span>);
+    }
+
+    return tokens;
+  };
+
+  // Render complete message content with block-level markdown and code blocks
+  const renderMessageContent = (content) => {
+    if (!content) return null;
+
+    // Split content into code blocks vs text blocks
+    const codeBlockRegex = /(```[\s\S]*?```)/g;
+    const parts = content.split(codeBlockRegex);
+
+    return parts.map((part, pIdx) => {
       if (part.startsWith('```') && part.endsWith('```')) {
-        // Extract code lines (remove backticks and optional language label)
-        const lines = part.slice(3, -3).trim().split('\n');
-        const firstLine = lines[0].toLowerCase();
-        const hasLang = ['javascript', 'js', 'html', 'css', 'bash', 'json'].includes(firstLine);
-        const codeText = hasLang ? lines.slice(1).join('\n') : lines.join('\n');
-        
+        const rawContent = part.slice(3, -3).trim();
+        const firstLineEnd = rawContent.indexOf('\n');
+        let language = '';
+        let codeText = rawContent;
+
+        if (firstLineEnd !== -1) {
+          const possibleLang = rawContent.substring(0, firstLineEnd).trim().toLowerCase();
+          if (['javascript', 'js', 'jsx', 'ts', 'typescript', 'html', 'css', 'bash', 'sh', 'json', 'python'].includes(possibleLang)) {
+            language = possibleLang;
+            codeText = rawContent.substring(firstLineEnd + 1);
+          }
+        }
+
         return (
-          <div key={index} className="chat-code-block" style={{
-            background: '#07070f',
-            border: '1px solid #1c1c30',
-            borderRadius: '6px',
-            margin: '0.5rem 0',
-            overflowX: 'auto',
-            padding: '0.75rem'
-          }}>
-            <pre style={{ fontFamily: 'var(--font-mono)', fontSize: '0.775rem', color: '#a7f3d0', whiteSpace: 'pre' }}>
+          <div
+            key={pIdx}
+            style={{
+              background: '#07070f',
+              border: '1px solid rgba(124, 58, 237, 0.25)',
+              borderRadius: '8px',
+              margin: '0.75rem 0',
+              overflow: 'hidden'
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justify: 'space-between',
+                alignItems: 'center',
+                padding: '0.35rem 0.75rem',
+                background: 'rgba(255,255,255,0.03)',
+                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                fontSize: '0.7rem',
+                color: 'var(--text-muted)'
+              }}
+            >
+              <span>{language || 'code'}</span>
+              <button
+                onClick={() => copyToClipboard(codeText, 'Code snippet copied!')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                  fontSize: '0.7rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem'
+                }}
+              >
+                <Copy size={12} /> Copy
+              </button>
+            </div>
+            <pre style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: '#a7f3d0', padding: '0.75rem', margin: 0, overflowX: 'auto', whiteSpace: 'pre' }}>
               <code>{codeText}</code>
             </pre>
           </div>
         );
       }
-      return <div key={index}>{renderFormattedText(part)}</div>;
+
+      // Process normal text block line by line for Markdown headers, lists, dividers
+      const lines = part.split('\n');
+      const renderedLines = [];
+
+      lines.forEach((line, lIdx) => {
+        const trimmed = line.trim();
+
+        // 1. Horizontal Rule: --- or ***
+        if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
+          renderedLines.push(
+            <hr
+              key={`hr-${lIdx}`}
+              style={{
+                border: 'none',
+                borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                margin: '0.75rem 0'
+              }}
+            />
+          );
+          return;
+        }
+
+        // 2. Headers: #, ##, ###, ####
+        const headerMatch = line.match(/^(#{1,6})\s+(.*)$/);
+        if (headerMatch) {
+          const level = headerMatch[1].length;
+          const headerText = headerMatch[2];
+          const fontSize = level === 1 ? '1.1rem' : level === 2 ? '1.02rem' : level === 3 ? '0.95rem' : '0.875rem';
+          const marginTop = lIdx === 0 ? '0.25rem' : '0.75rem';
+
+          renderedLines.push(
+            <div
+              key={`h-${lIdx}`}
+              style={{
+                fontSize,
+                fontWeight: '700',
+                color: '#ffffff',
+                marginTop,
+                marginBottom: '0.4rem',
+                lineHeight: '1.3'
+              }}
+            >
+              {renderInlineFormatted(headerText)}
+            </div>
+          );
+          return;
+        }
+
+        // 3. Bullet list item: * Item, - Item, + Item
+        const bulletMatch = line.match(/^(\s*)[*+-]\s+(.*)$/);
+        if (bulletMatch) {
+          const itemText = bulletMatch[2];
+          renderedLines.push(
+            <div
+              key={`b-${lIdx}`}
+              style={{
+                display: 'flex',
+                gap: '0.5rem',
+                alignItems: 'flex-start',
+                margin: '0.25rem 0 0.25rem 0.5rem',
+                lineHeight: '1.5'
+              }}
+            >
+              <span style={{ color: 'var(--primary-light)', fontSize: '0.9rem', lineHeight: '1.4' }}>•</span>
+              <div style={{ flex: 1 }}>{renderInlineFormatted(itemText)}</div>
+            </div>
+          );
+          return;
+        }
+
+        // 4. Numbered list item: 1. Item, 2. Item
+        const numMatch = line.match(/^(\s*)(\d+)\.\s+(.*)$/);
+        if (numMatch) {
+          const num = numMatch[2];
+          const itemText = numMatch[3];
+          renderedLines.push(
+            <div
+              key={`n-${lIdx}`}
+              style={{
+                display: 'flex',
+                gap: '0.4rem',
+                alignItems: 'flex-start',
+                margin: '0.25rem 0 0.25rem 0.5rem',
+                lineHeight: '1.5'
+              }}
+            >
+              <span style={{ color: 'var(--secondary)', fontWeight: '600', fontSize: '0.825rem' }}>{num}.</span>
+              <div style={{ flex: 1 }}>{renderInlineFormatted(itemText)}</div>
+            </div>
+          );
+          return;
+        }
+
+        // 5. Empty line (paragraph break)
+        if (!trimmed) {
+          renderedLines.push(<div key={`sp-${lIdx}`} style={{ height: '0.4rem' }} />);
+          return;
+        }
+
+        // 6. Normal paragraph text
+        renderedLines.push(
+          <p
+            key={`p-${lIdx}`}
+            style={{
+              margin: '0.25rem 0',
+              lineHeight: '1.55',
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere'
+            }}
+          >
+            {renderInlineFormatted(line)}
+          </p>
+        );
+      });
+
+      return <div key={`block-${pIdx}`}>{renderedLines}</div>;
     });
   };
 

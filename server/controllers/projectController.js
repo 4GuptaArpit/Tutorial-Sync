@@ -122,7 +122,7 @@ const analyzeProject = async (req, res, next) => {
       return res.status(200).json({ message: 'Project is already complete', project });
     }
 
-    const apiKeyConfigured = !!process.env.GEMINI_API_KEY;
+    const apiKeyConfigured = !!(process.env.GEMINI_TUTORIAL_API_KEY || process.env.GEMINI_API_KEY);
     const seed = findSeedTemplate(project);
 
     // Fallback/Demo Mode triggers if key is missing OR if matching seed is requested

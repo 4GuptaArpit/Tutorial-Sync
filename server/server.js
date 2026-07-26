@@ -43,7 +43,7 @@ app.use(generalLimiter);
 // Database connection retry helper
 const connectDB = async () => {
   const connString = process.env.MONGODB_URI;
-  if (!connString || connString.includes('<user>') || connString.includes('<pass>') || connString.includes('cluster.mongodb.net')) {
+  if (!connString || connString.includes('<user>') || connString.includes('<pass>') || connString.includes('<cluster>') || connString.includes('<password>')) {
     console.error('\n========================================================================');
     console.error('CRITICAL CONFIGURATION ERROR: Invalid/placeholder MONGODB_URI detected.');
     console.error('Location: E:\\BUILDING\\tutorial-sync\\server\\.env');

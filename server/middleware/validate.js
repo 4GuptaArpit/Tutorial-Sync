@@ -63,7 +63,15 @@ const validateProject = [
   body('sourceUrl')
     .optional({ checkFalsy: true })
     .trim()
-    .isURL().withMessage('Must be a valid URL'),
+    .isURL().withMessage('Must be a valid URL')
+    .custom((url) => {
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = url.match(regExp);
+      if (!match || match[2].length !== 11) {
+        throw new Error('Must be a valid YouTube video URL format (e.g. https://www.youtube.com/watch?v=...)');
+      }
+      return true;
+    }),
   
   body('topic')
     .optional({ checkFalsy: true })

@@ -109,7 +109,7 @@ const sendMessage = async (req, res, next) => {
     await chat.save();
 
     let reply = '';
-    const apiKeyConfigured = !!process.env.GEMINI_API_KEY;
+    const apiKeyConfigured = !!(process.env.GEMINI_CHAT_API_KEY || process.env.GEMINI_API_KEY);
 
     if (apiKeyConfigured) {
       try {

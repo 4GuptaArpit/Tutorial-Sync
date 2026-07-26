@@ -8,8 +8,8 @@ const geminiService = {
    * @param {boolean} isJson - Should output JSON
    * @returns {any} - Configured model instance
    */
-  getModel(systemInstruction = '', isJson = true) {
-    const apiKey = process.env.GEMINI_API_KEY;
+  getModel(systemInstruction = '', isJson = true, apiKeyOverride = null) {
+    const apiKey = apiKeyOverride || process.env.GEMINI_TUTORIAL_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error('Gemini API key is not configured on the server.');
     }
@@ -82,7 +82,8 @@ Ensure all code blocks are practical and syntactically correct. All string value
     const userPrompt = `Analyze this tutorial topic: "${title}". Detected tech keywords: [${techStack.join(', ')}]. Identify what dependencies/APIs are deprecated today and generate a modernized comparison, split-code diff, and step-by-step setup guides.`;
 
     try {
-      const model = this.getModel(systemPrompt, true);
+      const tutorialApiKey = process.env.GEMINI_TUTORIAL_API_KEY || process.env.GEMINI_API_KEY;
+      const model = this.getModel(systemPrompt, true, tutorialApiKey);
       const result = await model.generateContent(userPrompt);
       const response = await result.response;
       const parsed = safeJsonParse(response.text());
@@ -132,7 +133,8 @@ Focus on giving clear guidance on which model to choose, how to use it effective
     const userPrompt = `Generate a complete modern developer guide for "${topic}". Include installation commands, setup diffs, and step-by-step instructions.`;
 
     try {
-      const model = this.getModel(systemPrompt, true);
+      const tutorialApiKey = process.env.GEMINI_TUTORIAL_API_KEY || process.env.GEMINI_API_KEY;
+      const model = this.getModel(systemPrompt, true, tutorialApiKey);
       const result = await model.generateContent(userPrompt);
       const response = await result.response;
       const parsed = safeJsonParse(response.text());
@@ -189,7 +191,8 @@ CRITICAL RULES:
     }
 
     try {
-      const model = this.getModel(systemPrompt, false);
+      const chatApiKey = process.env.GEMINI_CHAT_API_KEY || process.env.GEMINI_API_KEY;
+      const model = this.getModel(systemPrompt, false, chatApiKey);
       const chat = model.startChat({ history });
 
       const result = await chat.sendMessage(userMessage);
