@@ -144,3 +144,19 @@ process.on('SIGTERM', () => {
     });
   });
 });
+
+// Keep-alive self-ping for Render free tier (prevents 15-min sleep)
+// Render automatically sets RENDER_EXTERNAL_URL on deployed services
+if (process.env.NODE_ENV === 'production' && process.env.RENDER_EXTERNAL_URL) {
+  const PING_INTERVAL = 14 * 60 * 1000; // ping every 14 minutes
+  setInterval(async () => {
+    try {
+      const url = `${process.env.RENDER_EXTERNAL_URL}/api/health`;
+      const res = await fetch(url);
+      console.log(`[Keep-alive] Ping ${url} → ${res.status}`);
+    } catch (err) {
+      console.warn('[Keep-alive] Ping failed:', err.message);
+    }
+  }, PING_INTERVAL);
+  console.log(`[Keep-alive] Self-ping enabled every 14 minutes.`);
+}
