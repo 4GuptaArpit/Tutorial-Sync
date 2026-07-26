@@ -3,12 +3,15 @@ import { api } from '../utils/api';
 import { copyToClipboard } from '../utils/export';
 import { Send, Sparkles, Trash2, ArrowUpRight, MessageSquareDashed, Copy, Check } from 'lucide-react';
 import LoadingSkeleton from './LoadingSkeleton';
+import ConfirmModal from './ConfirmModal';
 
 export default function ChatAssistant({ projectId }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   
   const chatEndRef = useRef(null);
 
@@ -77,15 +80,20 @@ export default function ChatAssistant({ projectId }) {
     }
   };
 
-  const handleClearHistory = async () => {
-    if (!window.confirm('Clear all conversation history in this mentoring session?')) {
-      return;
-    }
+  const handleClearHistory = () => {
+    setShowClearConfirm(true);
+  };
+
+  const confirmClearHistory = async () => {
+    setIsClearing(true);
     try {
       await api.delete(`/api/chat/${projectId}`);
       setMessages([]);
     } catch (err) {
       console.error(err);
+    } finally {
+      setIsClearing(false);
+      setShowClearConfirm(false);
     }
   };
 
@@ -525,6 +533,19 @@ export default function ChatAssistant({ projectId }) {
           20% { opacity: 1; }
         }
       `}</style>
+
+      {/* Clear Chat History Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showClearConfirm}
+        onClose={() => setShowClearConfirm(false)}
+        onConfirm={confirmClearHistory}
+        title="Clear Chat History"
+        message="Are you sure you want to clear all conversation history in this mentoring session? This action cannot be undone."
+        confirmText="Clear History"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isClearing}
+      />
     </div>
   );
 }

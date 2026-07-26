@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
 import { User, ShieldAlert, KeyRound, Info, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import ConfirmModal from './ConfirmModal';
 
 export default function SettingsPanel() {
   const { user, logout, updateProfile } = useAuth();
@@ -18,8 +19,9 @@ export default function SettingsPanel() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pwdLoading, setPwdLoading] = useState(false);
 
-  // Delete account confirmation
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  // Delete account confirmation modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -58,12 +60,9 @@ export default function SettingsPanel() {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    if (!window.confirm('WARNING: Deleting your account will permanently remove all your workspaces and chat logs. This action CANNOT be undone. Are you absolutely sure?')) {
-      return;
-    }
-
+  const confirmDeleteAccount = async () => {
     try {
+      setIsDeletingAccount(true);
       await api.delete('/api/auth/account');
       toast.success('Your account has been deleted.');
       window.location.hash = '#/';
@@ -71,6 +70,9 @@ export default function SettingsPanel() {
       window.location.reload();
     } catch (err) {
       toast.error(err.message || 'Failed to delete account');
+    } finally {
+      setIsDeletingAccount(false);
+      setShowDeleteModal(false);
     }
   };
 
@@ -191,26 +193,25 @@ export default function SettingsPanel() {
             Deleting your account will permanently wipe your user credentials, active project workspaces, step checkpoints, and mentoring chat logs. This action is immediate and irreversible.
           </p>
 
-          {!confirmDelete ? (
-            <button className="btn btn-danger" onClick={() => setConfirmDelete(true)} style={{ display: 'inline-flex', gap: '0.5rem' }}>
-              <Trash2 size={16} /> Delete Account
-            </button>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'rgba(244, 63, 94, 0.05)', padding: '1rem', border: '1px solid rgba(244,63,94,0.1)', borderRadius: '6px' }}>
-              <span style={{ fontSize: '0.85rem', color: 'var(--danger)', fontWeight: '600' }}>Are you absolutely sure? This cannot be undone.</span>
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <button className="btn btn-danger" onClick={handleDeleteAccount} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-                  Yes, Delete My Account
-                </button>
-                <button className="btn btn-ghost" onClick={() => setConfirmDelete(false)} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+          <button className="btn btn-danger" onClick={() => setShowDeleteModal(true)} style={{ display: 'inline-flex', gap: '0.5rem' }}>
+            <Trash2 size={16} /> Delete Account
+          </button>
         </div>
 
       </div>
+
+      {/* Account Deletion Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDeleteAccount}
+        title="Delete Account"
+        message="WARNING: Deleting your account will permanently wipe your credentials, active project workspaces, step checkpoints, and chat logs. This action CANNOT be undone."
+        confirmText="Permanently Delete Account"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeletingAccount}
+      />
     </div>
   );
 }

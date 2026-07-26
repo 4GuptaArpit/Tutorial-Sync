@@ -307,6 +307,10 @@ a:hover {
   100% { background-position: 0% 50%; }
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* --- Accessibility Offscreen (Screen Readers) --- */
 .sr-only {
   position: absolute;

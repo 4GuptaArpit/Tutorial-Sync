@@ -5,9 +5,14 @@ import { validateYouTubeURL } from '../utils/sanitize';
 import { Play, BookOpen, Trash2, ArrowRight, Sparkles, Youtube, CheckSquare, Clock } from 'lucide-react';
 import AuthModal from './AuthModal';
 import LoadingSkeleton from './LoadingSkeleton';
+import ConfirmModal from './ConfirmModal';
 
 export default function HomeDashboard() {
   const { user } = useAuth();
+  
+  // Delete confirm modal state
+  const [deleteProjectId, setDeleteProjectId] = useState(null);
+  const [deletingProject, setDeletingProject] = useState(false);
   
   // Link Refresh mode states
   const [youtubeUrl, setYoutubeUrl] = useState('');
@@ -107,17 +112,22 @@ export default function HomeDashboard() {
   };
 
   // Delete Project Workspace
-  const handleDeleteProject = async (id, event) => {
+  const handleOpenDeleteModal = (id, event) => {
     event.stopPropagation();
-    if (!window.confirm('Are you sure you want to delete this project and all associated chat logs?')) {
-      return;
-    }
+    setDeleteProjectId(id);
+  };
 
+  const handleConfirmDeleteProject = async () => {
+    if (!deleteProjectId) return;
+    setDeletingProject(true);
     try {
-      await api.delete(`/api/projects/${id}`);
+      await api.delete(`/api/projects/${deleteProjectId}`);
       fetchProjects(page);
     } catch (err) {
       console.error(err);
+    } finally {
+      setDeletingProject(false);
+      setDeleteProjectId(null);
     }
   };
 
@@ -259,7 +269,7 @@ export default function HomeDashboard() {
                         {proj.type === 'tech-guide' ? 'Tech Guide' : 'Tutorial Video'}
                       </span>
                       <button 
-                        onClick={(e) => handleDeleteProject(proj._id, e)}
+                        onClick={(e) => handleOpenDeleteModal(proj._id, e)}
                         style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', transition: 'color 0.2s' }}
                         className="delete-icon-btn"
                         aria-label="Delete workspace"
@@ -364,6 +374,19 @@ export default function HomeDashboard() {
 
       {/* Auth Modal Mount */}
       <AuthModal />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(deleteProjectId)}
+        onClose={() => setDeleteProjectId(null)}
+        onConfirm={handleConfirmDeleteProject}
+        title="Delete Workspace"
+        message="Are you sure you want to delete this project workspace and all associated chat logs? This action cannot be undone."
+        confirmText="Delete Workspace"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deletingProject}
+      />
     </div>
   );
 }
